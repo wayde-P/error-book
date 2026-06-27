@@ -6,15 +6,16 @@ const CartContext = createContext();
 export function CartProvider({ children }) {
   const [cart, setCart] = useState({ items: [], itemCount: 0, subtotal: 0, tax: 0, total: 0 });
   const [loading, setLoading] = useState(false);
+  const [discount, setDiscount] = useState(null);
 
-  const fetchCart = useCallback(async () => {
+  const fetchCart = useCallback(async (code) => {
     try {
-      const data = await api.getCart();
+      const data = await api.getCart(code || (discount?.code));
       setCart(data);
     } catch (err) {
       console.error('Failed to fetch cart:', err);
     }
-  }, []);
+  }, [discount]);
 
   useEffect(() => {
     fetchCart();
@@ -56,14 +57,27 @@ export function CartProvider({ children }) {
     setLoading(true);
     try {
       await api.clearCart();
+      setDiscount(null);
       await fetchCart();
     } finally {
       setLoading(false);
     }
   };
 
+  const applyDiscount = async (code) => {
+    const result = await api.validateDiscount(code, cart.subtotal);
+    setDiscount(result);
+    await fetchCart(result.code);
+    return result;
+  };
+
+  const removeDiscount = async () => {
+    setDiscount(null);
+    await fetchCart(null);
+  };
+
   return (
-    <CartContext.Provider value={{ cart, loading, addItem, updateQuantity, removeItem, clearAll, fetchCart }}>
+    <CartContext.Provider value={{ cart, loading, discount, addItem, updateQuantity, removeItem, clearAll, fetchCart, applyDiscount, removeDiscount }}>
       {children}
     </CartContext.Provider>
   );

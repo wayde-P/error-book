@@ -5,10 +5,27 @@ import { useCart } from '../context/CartContext';
 import * as api from '../services/api';
 
 function CartPage() {
-  const { cart, clearAll } = useCart();
+  const { cart, discount, clearAll, applyDiscount, removeDiscount } = useCart();
   const [address, setAddress] = useState('');
   const [ordering, setOrdering] = useState(false);
+  const [discountInput, setDiscountInput] = useState('');
+  const [discountError, setDiscountError] = useState('');
+  const [applyingDiscount, setApplyingDiscount] = useState(false);
   const navigate = useNavigate();
+
+  async function handleApplyDiscount() {
+    if (!discountInput.trim()) return;
+    setApplyingDiscount(true);
+    setDiscountError('');
+    try {
+      await applyDiscount(discountInput.trim().toUpperCase());
+      setDiscountInput('');
+    } catch (err) {
+      setDiscountError(err.message);
+    } finally {
+      setApplyingDiscount(false);
+    }
+  }
 
   async function handleCheckout() {
     if (!address.trim()) {
@@ -18,7 +35,7 @@ function CartPage() {
 
     setOrdering(true);
     try {
-      await api.createOrder(address);
+      await api.createOrder(address, discount?.code);
       alert('Order placed successfully!');
       setAddress('');
       navigate('/orders');
@@ -53,6 +70,22 @@ function CartPage() {
           <span>Subtotal ({cart.itemCount} items)</span>
           <span>${cart.subtotal.toFixed(2)}</span>
         </div>
+
+        {discount && (
+          <div className="cart-summary-row" style={{ color: 'green' }}>
+            <span>
+              Discount ({discount.code})
+              <button
+                onClick={removeDiscount}
+                style={{ marginLeft: '0.5rem', background: 'none', border: 'none', cursor: 'pointer', color: '#999', fontSize: '0.75rem' }}
+              >
+                ✕ Remove
+              </button>
+            </span>
+            <span>-${cart.discountAmount.toFixed(2)}</span>
+          </div>
+        )}
+
         <div className="cart-summary-row">
           <span>Tax (8%)</span>
           <span>${cart.tax.toFixed(2)}</span>
@@ -61,6 +94,32 @@ function CartPage() {
           <span>Total</span>
           <span>${cart.total.toFixed(2)}</span>
         </div>
+
+        {/* Discount code input */}
+        {!discount && (
+          <div style={{ marginTop: '1rem' }}>
+            <div style={{ display: 'flex', gap: '0.5rem' }}>
+              <input
+                type="text"
+                placeholder="Discount code"
+                value={discountInput}
+                onChange={(e) => setDiscountInput(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleApplyDiscount()}
+                style={{ flex: 1, padding: '0.6rem', borderRadius: '4px', border: '1px solid #ddd' }}
+              />
+              <button
+                className="btn btn-secondary"
+                onClick={handleApplyDiscount}
+                disabled={applyingDiscount || !discountInput.trim()}
+              >
+                {applyingDiscount ? 'Applying...' : 'Apply'}
+              </button>
+            </div>
+            {discountError && (
+              <p style={{ color: 'red', fontSize: '0.85rem', marginTop: '0.4rem' }}>{discountError}</p>
+            )}
+          </div>
+        )}
 
         <div style={{ marginTop: '1.5rem' }}>
           <input

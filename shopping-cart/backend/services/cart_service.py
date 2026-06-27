@@ -1,6 +1,7 @@
 from decimal import Decimal
 from models.cart import CartModel
 from services.product_service import ProductService
+from services.discount_service import DiscountService
 
 
 class CartService:
@@ -8,21 +9,24 @@ class CartService:
     def __init__(self):
         self.model = CartModel()
         self.product_service = ProductService()
+        self.discount_service = DiscountService()
 
-    def get_cart(self, session_id):
+    def get_cart(self, session_id, discount=None):
         items = self.model.get_items(session_id)
         subtotal = sum(
             Decimal(str(item["price"])) * int(item["quantity"]) for item in items
         )
         item_count = sum(int(item["quantity"]) for item in items)
 
-        return {
+        cart = {
             "items": items,
             "itemCount": item_count,
             "subtotal": float(subtotal),
             "tax": float(subtotal * Decimal("0.08")),
             "total": float(subtotal * Decimal("1.08")),
         }
+
+        return self.discount_service.apply_to_cart(cart, discount)
 
     def add_item(self, session_id, product_id, quantity=1):
         product = self.product_service.get_by_id(product_id)

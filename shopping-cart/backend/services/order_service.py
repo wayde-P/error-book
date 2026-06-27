@@ -9,10 +9,18 @@ class OrderService:
         self.model = OrderModel()
 
     # Create a new order
-    def create_order(self, session_id, items, subtotal, shipping_address):
+    def create_order(self, session_id, items, subtotal, shipping_address, discount=None):
         order_id = str(uuid.uuid4())[:8]
-        tax = round(subtotal * 0.08, 2)
-        total = round(subtotal + tax, 2)
+
+        if discount:
+            discount_amount = discount["discountAmount"]
+            discounted_subtotal = max(0.0, round(subtotal - discount_amount, 2))
+            tax = round(discounted_subtotal * 0.08, 2)
+            total = round(discounted_subtotal + tax, 2)
+        else:
+            discount_amount = 0.0
+            tax = round(subtotal * 0.08, 2)
+            total = round(subtotal + tax, 2)
 
         order = {
             "sessionId": session_id,
@@ -25,6 +33,10 @@ class OrderService:
             "status": "confirmed",
             "createdAt": datetime.now(timezone.utc).isoformat(),
         }
+
+        if discount:
+            order["discountCode"] = discount["code"]
+            order["discountAmount"] = str(discount_amount)
 
         self.model.put(order)
         return order

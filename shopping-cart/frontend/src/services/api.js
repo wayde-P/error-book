@@ -32,7 +32,10 @@ export const getCategories = () => request('/products/categories');
 export const searchProducts = (query) => request(`/products/search?q=${encodeURIComponent(query)}`);
 
 // Cart endpoints
-export const getCart = () => request('/cart');
+export const getCart = (code) => {
+  const params = code ? `?code=${encodeURIComponent(code)}` : '';
+  return request(`/cart${params}`);
+};
 
 export const addToCart = (productId, quantity = 1) =>
   request('/cart/items', {
@@ -51,11 +54,18 @@ export const removeFromCart = (productId) =>
 
 export const clearCart = () => request('/cart', { method: 'DELETE' });
 
+// Discount endpoints
+export const validateDiscount = (code, subtotal) =>
+  request('/discounts/validate', {
+    method: 'POST',
+    body: JSON.stringify({ code, subtotal }),
+  });
+
 // Order endpoints
-export const createOrder = (shippingAddress) =>
+export const createOrder = (shippingAddress, discountCode) =>
   request('/orders', {
     method: 'POST',
-    body: JSON.stringify({ shippingAddress }),
+    body: JSON.stringify({ shippingAddress, ...(discountCode && { discountCode }) }),
   });
 
 export const getOrders = () => request('/orders');

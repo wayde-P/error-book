@@ -1,8 +1,10 @@
 from flask import Blueprint, jsonify, request
 from services.cart_service import CartService
+from services.discount_service import DiscountService
 
 cart_bp = Blueprint("cart", __name__)
 cart_service = CartService()
+discount_service = DiscountService()
 
 # Hardcoded for the workshop — in production replace with a real identity
 # (e.g. JWT sub or Cognito user ID) so each user gets an isolated cart.
@@ -11,7 +13,13 @@ SESSION_ID = "workshop-user"
 
 @cart_bp.route("", methods=["GET"])
 def get_cart():
-    cart = cart_service.get_cart(SESSION_ID)
+    code = request.args.get("code")
+    discount = None
+    if code:
+        # Pre-fetch cart subtotal to calculate discount amount
+        base_cart = cart_service.get_cart(SESSION_ID)
+        discount = discount_service.validate(code, base_cart["subtotal"])
+    cart = cart_service.get_cart(SESSION_ID, discount=discount)
     return jsonify(cart)
 
 

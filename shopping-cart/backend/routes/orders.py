@@ -1,10 +1,12 @@
 from flask import Blueprint, jsonify, request
 from services.order_service import OrderService
 from services.cart_service import CartService
+from services.discount_service import DiscountService
 
 orders_bp = Blueprint("orders", __name__)
 order_service = OrderService()
 cart_service = CartService()
+discount_service = DiscountService()
 
 # Hardcoded for the workshop — see routes/cart.py for context.
 SESSION_ID = "workshop-user"
@@ -22,11 +24,19 @@ def create_order():
     if not cart["items"]:
         return jsonify({"error": "Cart is empty"}), 400
 
+    # Re-validate discount at checkout time to guard against codes expiring
+    # between the cart page and order submission.
+    discount_code = body.get("discountCode")
+    discount = None
+    if discount_code:
+        discount = discount_service.validate(discount_code, cart["subtotal"])
+
     order = order_service.create_order(
         session_id=SESSION_ID,
         items=cart["items"],
         subtotal=cart["subtotal"],
         shipping_address=shipping_address,
+        discount=discount,
     )
 
     # Clear cart here rather than inside OrderService — cart management is an
