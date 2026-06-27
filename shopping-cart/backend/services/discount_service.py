@@ -34,11 +34,23 @@ class DiscountService:
         }
 
     def calculate_discount(self, discount: dict, subtotal: float) -> float:
-        if discount["type"] == "percent":
-            amount = round(subtotal * discount["value"] / 100, 2)
+        dtype = discount.get("type")
+        value = float(discount.get("value", 0))
+        if dtype == "percent":
+            if not (0 <= value <= 100):
+                raise ValueError(f"Percent discount value must be 0–100, got {value}")
+            amount = round(subtotal * value / 100, 2)
+        elif dtype == "fixed":
+            if value < 0:
+                raise ValueError(f"Fixed discount value must be non-negative, got {value}")
+            amount = min(value, subtotal)
         else:
-            amount = min(float(discount["value"]), subtotal)
+            raise ValueError(f"Unknown discount type: {dtype!r}")
         return amount
+
+    def consume(self, code: str):
+        """Increment usedCount after a successful order. Call once per order."""
+        self.model.increment_used_count(code)
 
     def apply_to_cart(self, cart: dict, discount) -> dict:
         """Inject discount totals into a cart dict. Returns cart unchanged if discount is None."""

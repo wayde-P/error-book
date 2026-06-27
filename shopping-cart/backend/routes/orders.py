@@ -44,6 +44,10 @@ def create_order():
     # call fails after the order is saved the cart will not be cleared.
     cart_service.clear_cart(SESSION_ID)
 
+    # Increment usedCount after order is persisted and cart is cleared.
+    if discount:
+        discount_service.consume(discount["code"])
+
     return jsonify(order), 201
 
 
