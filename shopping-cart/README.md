@@ -38,12 +38,14 @@ shopping-cart/
 │   │   ├── products.py         # 商品相关接口
 │   │   ├── cart.py             # 购物车相关接口（支持 ?code=X 折扣参数）
 │   │   ├── orders.py           # 订单相关接口
-│   │   └── discounts.py        # 折扣码验证接口
+│   │   ├── discounts.py        # 折扣码验证接口
+│   │   └── wishlist.py         # 愿望清单接口
 │   ├── services/
 │   │   ├── product_service.py  # 商品业务逻辑（含自动种子数据）
 │   │   ├── cart_service.py     # 购物车业务逻辑（含折扣计算）
 │   │   ├── order_service.py    # 订单创建逻辑（含折扣记录）
-│   │   └── discount_service.py # 折扣码验证、计算、应用逻辑
+│   │   ├── discount_service.py # 折扣码验证、计算、应用逻辑
+│   │   └── wishlist_service.py # 愿望清单业务逻辑
 │   ├── models/
 │   │   ├── product.py          # DynamoDB 商品数据模型
 │   │   ├── cart.py             # DynamoDB 购物车数据模型
@@ -101,6 +103,15 @@ shopping-cart/
 | PUT | `/api/cart/items/:id` | 更新商品数量 |
 | DELETE | `/api/cart/items/:id` | 删除单个商品 |
 | DELETE | `/api/cart` | 清空购物车 |
+
+### 愿望清单
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| GET | `/api/wishlist` | 获取愿望清单 |
+| POST | `/api/wishlist/items` | 收藏商品（body: `{ "productId": "..." }`） |
+| DELETE | `/api/wishlist/items/:id` | 从愿望清单移除 |
+| POST | `/api/wishlist/items/:id/move-to-cart` | 移入购物车（body: `{ "keepInWishlist": true/false }`） |
 
 ### 折扣码
 
@@ -167,3 +178,4 @@ Claude 完成代码修改后，执行：
 - **税率**：固定 8%，税基为折后金额（先折扣后计税）。
 - **折扣码**：支持百分比（`percent`）和固定金额（`fixed`）两种类型，可设置过期时间和最大使用次数。结算时后端重新验证，防止码在浏览购物车到提交订单之间失效。折扣信息随订单一起写入 DynamoDB。
 - **自动种子数据**：首次访问商品列表时，若 DynamoDB 为空，`ProductService` 会自动写入 10 条演示商品。
+- **愿望清单**：复用 CartTable，通过 `listType` 字段区分购物车条目（`"cart"`）和愿望清单条目（`"wishlist"`）。同一商品不能同时存在于两个列表。移入购物车时用户可选择是否保留收藏。
