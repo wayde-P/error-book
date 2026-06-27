@@ -9,11 +9,18 @@ class CartModel:
         dynamodb = boto3.resource("dynamodb")
         self.table = dynamodb.Table(os.environ["CART_TABLE"])
 
-    def get_items(self, session_id):
+    def get_items(self, session_id, list_type="cart"):
         response = self.table.query(
             KeyConditionExpression=boto3.dynamodb.conditions.Key("sessionId").eq(session_id)
         )
-        return [self._serialize(item) for item in response["Items"]]
+        return [
+            self._serialize(item)
+            for item in response["Items"]
+            if item.get("listType", "cart") == list_type
+        ]
+
+    def get_wishlist_items(self, session_id):
+        return self.get_items(session_id, list_type="wishlist")
 
     def get_item(self, session_id, product_id):
         response = self.table.get_item(
