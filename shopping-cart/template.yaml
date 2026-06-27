@@ -72,6 +72,18 @@ Resources:
         - AttributeName: orderId
           KeyType: RANGE
 
+  DiscountsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub ${AWS::StackName}-discounts
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: code
+          AttributeType: S
+      KeySchema:
+        - AttributeName: code
+          KeyType: HASH
+
   # ========================================
   # Lambda Function (Flask API behind API Gateway)
   # ========================================
@@ -85,6 +97,7 @@ Resources:
           PRODUCTS_TABLE: !Ref ProductsTable
           CART_TABLE: !Ref CartTable
           ORDERS_TABLE: !Ref OrdersTable
+          DISCOUNTS_TABLE: !Ref DiscountsTable
       Policies:
         - DynamoDBCrudPolicy:
             TableName: !Ref ProductsTable
@@ -92,6 +105,8 @@ Resources:
             TableName: !Ref CartTable
         - DynamoDBCrudPolicy:
             TableName: !Ref OrdersTable
+        - DynamoDBCrudPolicy:
+            TableName: !Ref DiscountsTable
       Events:
         ProxyApi:
           Type: Api

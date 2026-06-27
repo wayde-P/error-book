@@ -14,7 +14,7 @@
                                                       ▼
                                                 ┌───────────┐
                                                 │ DynamoDB  │
-                                                │  (3张表)  │
+                                                │  (4张表)  │
                                                 └───────────┘
 ```
 
@@ -23,7 +23,7 @@
 | 前端 | React 18 + Vite，托管于 S3 | 静态网站托管 |
 | API 层 | Amazon API Gateway (REST) | 启用 CORS |
 | 后端 | AWS Lambda 运行 Flask | 通过 serverless-wsgi 适配 |
-| 数据库 | DynamoDB（按需计费） | products / cart / orders 三张表 |
+| 数据库 | DynamoDB（按需计费） | products / cart / orders / discounts 四张表 |
 | 基础设施 | AWS SAM | CloudFormation 模板 |
 
 ## 项目结构
@@ -36,16 +36,24 @@ shopping-cart/
 │   ├── requirements.txt        # Python 依赖
 │   ├── routes/
 │   │   ├── products.py         # 商品相关接口
-│   │   ├── cart.py             # 购物车相关接口
-│   │   └── orders.py           # 订单相关接口
+│   │   ├── cart.py             # 购物车相关接口（支持 ?code=X 折扣参数）
+│   │   ├── orders.py           # 订单相关接口
+│   │   └── discounts.py        # 折扣码验证接口
 │   ├── services/
 │   │   ├── product_service.py  # 商品业务逻辑（含自动种子数据）
-│   │   ├── cart_service.py     # 购物车业务逻辑（含合计计算）
-│   │   └── order_service.py    # 订单创建逻辑
-│   └── models/
-│       ├── product.py          # DynamoDB 商品数据模型
-│       ├── cart.py             # DynamoDB 购物车数据模型
-│       └── order.py            # DynamoDB 订单数据模型
+│   │   ├── cart_service.py     # 购物车业务逻辑（含折扣计算）
+│   │   ├── order_service.py    # 订单创建逻辑（含折扣记录）
+│   │   └── discount_service.py # 折扣码验证、计算、应用逻辑
+│   ├── models/
+│   │   ├── product.py          # DynamoDB 商品数据模型
+│   │   ├── cart.py             # DynamoDB 购物车数据模型
+│   │   ├── order.py            # DynamoDB 订单数据模型
+│   │   └── discount.py         # DynamoDB 折扣码数据模型
+│   └── tests/
+│       ├── test_cart_service.py       # 购物车服务单元测试（19 个：添加/删除/更新/合计）
+│       ├── test_cart_service_discount.py # 购物车折扣集成测试（3 个）
+│       ├── test_discount_service.py   # 折扣服务单元测试（18 个）
+│       └── test_discount_routes.py    # 折扣路由测试（4 个）
 ├── frontend/
 │   ├── index.html              # HTML 入口
 │   ├── package.json            # Node 依赖（React 18、React Router、Vite）
@@ -88,10 +96,17 @@ shopping-cart/
 | 方法 | 路径 | 说明 |
 |------|------|------|
 | GET | `/api/cart` | 获取购物车（含小计、税额、合计） |
+| GET | `/api/cart?code=X` | 获取购物车（含折扣后合计） |
 | POST | `/api/cart/items` | 添加商品（支持指定数量） |
 | PUT | `/api/cart/items/:id` | 更新商品数量 |
 | DELETE | `/api/cart/items/:id` | 删除单个商品 |
 | DELETE | `/api/cart` | 清空购物车 |
+
+### 折扣码
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| POST | `/api/discounts/validate` | 验证折扣码，返回折扣详情 |
 
 ### 订单
 
@@ -149,5 +164,6 @@ Claude 完成代码修改后，执行：
 
 - **会话隔离**：购物车和订单通过 `sessionId` 区分用户。当前版本硬编码为 `"workshop-user"`，生产环境需替换为真实的认证 ID。
 - **商品价格快照**：商品加入购物车时会快照 `name`、`price`、`image`，商品信息后续变更不影响已在购物车中的条目价格。
-- **税率**：固定 8%，在 `CartService` 中计算。
+- **税率**：固定 8%，税基为折后金额（先折扣后计税）。
+- **折扣码**：支持百分比（`percent`）和固定金额（`fixed`）两种类型，可设置过期时间和最大使用次数。结算时后端重新验证，防止码在浏览购物车到提交订单之间失效。折扣信息随订单一起写入 DynamoDB。
 - **自动种子数据**：首次访问商品列表时，若 DynamoDB 为空，`ProductService` 会自动写入 10 条演示商品。

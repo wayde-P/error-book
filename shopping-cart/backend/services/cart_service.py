@@ -11,19 +11,26 @@ class CartService:
         self.product_service = ProductService()
         self.discount_service = DiscountService()
 
+    TAX_RATE = Decimal("0.08")
+
+    def _calculate_tax(self, subtotal: Decimal) -> tuple[float, float]:
+        """Returns (tax, total) for the given subtotal."""
+        return float(subtotal * self.TAX_RATE), float(subtotal * (1 + self.TAX_RATE))
+
     def get_cart(self, session_id, discount=None):
         items = self.model.get_items(session_id)
         subtotal = sum(
             Decimal(str(item["price"])) * int(item["quantity"]) for item in items
         )
         item_count = sum(int(item["quantity"]) for item in items)
+        tax, total = self._calculate_tax(subtotal)
 
         cart = {
             "items": items,
             "itemCount": item_count,
             "subtotal": float(subtotal),
-            "tax": float(subtotal * Decimal("0.08")),
-            "total": float(subtotal * Decimal("1.08")),
+            "tax": tax,
+            "total": total,
         }
 
         return self.discount_service.apply_to_cart(cart, discount)
