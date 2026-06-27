@@ -55,6 +55,14 @@ class TestAddItem:
         assert result == {"error": "Product not found"}
         assert len(store) == 0
 
+    def test_returns_error_when_product_already_in_cart(self):
+        svc, store = _make_service()
+        # pre-populate store with a cart item
+        store["a1"] = {"productId": "a1", "name": "Widget", "price": 10.0, "image": "🔧", "listType": "cart", "quantity": 2}
+        result = svc.add_item(SESSION, "a1")
+        assert result == {"error": "Item already in cart"}
+        assert store["a1"]["listType"] == "cart"  # cart item unchanged
+
 
 class TestRemoveItem:
     def test_removes_existing_wishlist_item(self):
@@ -69,6 +77,13 @@ class TestRemoveItem:
         svc, store = _make_service()
         result = svc.remove_item(SESSION, "a1")
         assert result == {"error": "Item not in wishlist"}
+
+    def test_returns_error_when_item_is_in_cart_not_wishlist(self):
+        svc, store = _make_service()
+        store["a1"] = {"productId": "a1", "name": "Widget", "price": 10.0, "image": "🔧", "listType": "cart", "quantity": 1}
+        result = svc.remove_item(SESSION, "a1")
+        assert result == {"error": "Item not in wishlist"}
+        assert "a1" in store  # cart item not deleted
 
 
 class TestMoveToCart:
@@ -89,3 +104,9 @@ class TestMoveToCart:
         assert "error" not in result
         assert "a1" in store
         svc.cart_service.add_item.assert_called_once_with(SESSION, "a1", quantity=1)
+
+    def test_returns_error_when_item_not_in_wishlist(self):
+        svc, store = _make_service()
+        result = svc.move_to_cart(SESSION, "a1", keep_in_wishlist=False)
+        assert result == {"error": "Item not in wishlist"}
+        svc.cart_service.add_item.assert_not_called()

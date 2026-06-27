@@ -18,6 +18,10 @@ class WishlistService:
         if not product:
             return {"error": "Product not found"}
 
+        existing = self.model.get_item(session_id, product_id)
+        if existing and existing.get("listType") == "cart":
+            return {"error": "Item already in cart"}
+
         item = {
             "sessionId": session_id,
             "productId": product_id,
@@ -31,7 +35,7 @@ class WishlistService:
 
     def remove_item(self, session_id, product_id):
         existing = self.model.get_item(session_id, product_id)
-        if not existing:
+        if not existing or existing.get("listType") != "wishlist":
             return {"error": "Item not in wishlist"}
 
         self.model.delete_item(session_id, product_id)
@@ -39,7 +43,7 @@ class WishlistService:
 
     def move_to_cart(self, session_id, product_id, keep_in_wishlist):
         existing = self.model.get_item(session_id, product_id)
-        if not existing:
+        if not existing or existing.get("listType") != "wishlist":
             return {"error": "Item not in wishlist"}
 
         result = self.cart_service.add_item(session_id, product_id, quantity=1)
