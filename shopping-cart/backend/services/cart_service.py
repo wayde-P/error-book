@@ -55,6 +55,7 @@ class CartService:
             "price": product["price"],
             "image": product["image"],
             "quantity": new_quantity,
+            "listType": "cart",
         }
         self.model.put_item(cart_item)
 
