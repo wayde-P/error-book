@@ -70,3 +70,21 @@ export const createOrder = (shippingAddress, discountCode) =>
 
 export const getOrders = () => request('/orders');
 export const getOrder = (orderId) => request(`/orders/${orderId}`);
+
+// Wishlist endpoints
+export const getWishlist = () => request('/wishlist');
+
+export const addToWishlist = (productId) =>
+  request('/wishlist/items', {
+    method: 'POST',
+    body: JSON.stringify({ productId }),
+  });
+
+export const removeFromWishlist = (productId) =>
+  request(`/wishlist/items/${productId}`, { method: 'DELETE' });
+
+export const moveToCart = (productId, keepInWishlist) =>
+  request(`/wishlist/items/${productId}/move-to-cart`, {
+    method: 'POST',
+    body: JSON.stringify({ keepInWishlist }),
+  });
