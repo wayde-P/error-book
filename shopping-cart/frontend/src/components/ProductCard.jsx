@@ -1,13 +1,25 @@
 import { useState } from 'react';
 import { useCart } from '../context/CartContext';
+import { useWishlist } from '../context/WishlistContext';
 
 function ProductCard({ product }) {
-  const { addItem, loading } = useCart();
+  const { addItem, loading: cartLoading } = useCart();
+  const { addToWishlist, removeFromWishlist, isInWishlist, loading: wishlistLoading } = useWishlist();
   const [quantity, setQuantity] = useState(1);
+
+  const inWishlist = isInWishlist(product.productId);
 
   function handleAdd() {
     addItem(product.productId, quantity);
     setQuantity(1);
+  }
+
+  function handleWishlist() {
+    if (inWishlist) {
+      removeFromWishlist(product.productId);
+    } else {
+      addToWishlist(product.productId);
+    }
   }
 
   return (
@@ -19,16 +31,31 @@ function ProductCard({ product }) {
       <div className="product-price">${product.price.toFixed(2)}</div>
       <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '0.75rem' }}>
         <div className="quantity-controls">
-          <button onClick={() => setQuantity(q => Math.max(1, q - 1))} disabled={loading}>−</button>
+          <button onClick={() => setQuantity(q => Math.max(1, q - 1))} disabled={cartLoading}>−</button>
           <span>{quantity}</span>
-          <button onClick={() => setQuantity(q => q + 1)} disabled={loading}>+</button>
+          <button onClick={() => setQuantity(q => q + 1)} disabled={cartLoading}>+</button>
         </div>
         <button
           className="btn btn-primary"
           onClick={handleAdd}
-          disabled={loading}
+          disabled={cartLoading}
         >
           Add to Cart
+        </button>
+        <button
+          onClick={handleWishlist}
+          disabled={wishlistLoading}
+          style={{
+            background: 'none',
+            border: 'none',
+            cursor: 'pointer',
+            fontSize: '1.4rem',
+            lineHeight: 1,
+            padding: '0.2rem',
+          }}
+          title={inWishlist ? 'Remove from wishlist' : 'Save to wishlist'}
+        >
+          {inWishlist ? '♥' : '♡'}
         </button>
       </div>
     </div>
