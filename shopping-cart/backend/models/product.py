@@ -10,6 +10,8 @@ class ProductModel:
         self.table = dynamodb.Table(os.environ["PRODUCTS_TABLE"])
 
     def scan_all(self):
+        # Full table scan — fine for the small demo dataset but won't scale.
+        # Results exceeding 1MB require paginating via LastEvaluatedKey (not implemented).
         response = self.table.scan()
         items = response["Items"]
         return [self._serialize(item) for item in items]

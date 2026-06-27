@@ -8,6 +8,7 @@ class OrderService:
     def __init__(self):
         self.model = OrderModel()
 
+    # Create a new order
     def create_order(self, session_id, items, subtotal, shipping_address):
         order_id = str(uuid.uuid4())[:8]
         tax = round(subtotal * 0.08, 2)

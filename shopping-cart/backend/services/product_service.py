@@ -9,6 +9,8 @@ class ProductService:
     def get_all(self):
         products = self.model.scan_all()
         if not products:
+            # Auto-seed demo products on first access so the app works
+            # immediately after deployment without a separate data-load step.
             self._seed_products()
             products = self.model.scan_all()
         return products

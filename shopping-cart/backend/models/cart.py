@@ -23,6 +23,7 @@ class CartModel:
         return self._serialize(item) if item else None
 
     def put_item(self, item):
+        # DynamoDB rejects Python floats; convert to Decimal before writing.
         db_item = {}
         for key, val in item.items():
             if isinstance(val, float):
@@ -39,6 +40,8 @@ class CartModel:
         )
 
     def clear(self, session_id):
+        # DynamoDB has no bulk-delete API; items are removed one by one.
+        # A Lambda timeout mid-loop will leave the cart partially cleared.
         items = self.get_items(session_id)
         for item in items:
             self.delete_item(session_id, item["productId"])

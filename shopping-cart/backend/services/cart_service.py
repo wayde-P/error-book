@@ -35,6 +35,8 @@ class CartService:
         else:
             new_quantity = quantity
 
+        # Snapshot name/price/image from the product at add-time so cart
+        # totals stay stable if the product is updated or deleted later.
         cart_item = {
             "sessionId": session_id,
             "productId": product_id,

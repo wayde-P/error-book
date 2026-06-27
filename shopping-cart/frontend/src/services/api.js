@@ -2,6 +2,8 @@
  * API service - handles all HTTP requests to the backend.
  * Uses the API Gateway URL configured at build time.
  */
+// Falls back to /api for local dev — Vite proxies /api to localhost:5000
+// (see vite.config.js). VITE_API_URL is injected at build time for production.
 const API_BASE = import.meta.env.VITE_API_URL || '/api';
 
 async function request(path, options = {}) {

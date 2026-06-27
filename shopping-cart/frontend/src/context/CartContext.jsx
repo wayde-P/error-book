@@ -20,6 +20,8 @@ export function CartProvider({ children }) {
     fetchCart();
   }, [fetchCart]);
 
+  // After every mutation, re-fetch the full cart from the server so totals
+  // and item counts stay in sync without duplicating calculation logic client-side.
   const addItem = async (productId, quantity = 1) => {
     setLoading(true);
     try {

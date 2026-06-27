@@ -6,6 +6,7 @@ orders_bp = Blueprint("orders", __name__)
 order_service = OrderService()
 cart_service = CartService()
 
+# Hardcoded for the workshop — see routes/cart.py for context.
 SESSION_ID = "workshop-user"
 
 
@@ -28,6 +29,9 @@ def create_order():
         shipping_address=shipping_address,
     )
 
+    # Clear cart here rather than inside OrderService — cart management is an
+    # HTTP-layer concern, not part of the order domain itself. Note: if this
+    # call fails after the order is saved the cart will not be cleared.
     cart_service.clear_cart(SESSION_ID)
 
     return jsonify(order), 201

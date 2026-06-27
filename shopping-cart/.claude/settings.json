@@ -1,0 +1,17 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/workshop/shopping-cart/.claude/update-readme.sh",
+            "timeout": 10,
+            "statusMessage": "检查 README 是否需要更新..."
+          }
+        ]
+      }
+    ]
+  }
+}

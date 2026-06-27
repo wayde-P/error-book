@@ -4,6 +4,8 @@ from services.cart_service import CartService
 cart_bp = Blueprint("cart", __name__)
 cart_service = CartService()
 
+# Hardcoded for the workshop — in production replace with a real identity
+# (e.g. JWT sub or Cognito user ID) so each user gets an isolated cart.
 SESSION_ID = "workshop-user"
 
 
