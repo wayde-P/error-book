@@ -9,11 +9,18 @@ class CartModel:
         dynamodb = boto3.resource("dynamodb")
         self.table = dynamodb.Table(os.environ["CART_TABLE"])
 
-    def get_items(self, session_id):
+    def get_items(self, session_id, list_type="cart"):
         response = self.table.query(
             KeyConditionExpression=boto3.dynamodb.conditions.Key("sessionId").eq(session_id)
         )
-        return [self._serialize(item) for item in response["Items"]]
+        return [
+            self._serialize(item)
+            for item in response["Items"]
+            if item.get("listType", "cart") == list_type
+        ]
+
+    def get_wishlist_items(self, session_id):
+        return self.get_items(session_id, list_type="wishlist")
 
     def get_item(self, session_id, product_id):
         response = self.table.get_item(
@@ -23,6 +30,7 @@ class CartModel:
         return self._serialize(item) if item else None
 
     def put_item(self, item):
+        # DynamoDB rejects Python floats; convert to Decimal before writing.
         db_item = {}
         for key, val in item.items():
             if isinstance(val, float):
@@ -39,6 +47,8 @@ class CartModel:
         )
 
     def clear(self, session_id):
+        # DynamoDB has no bulk-delete API; items are removed one by one.
+        # A Lambda timeout mid-loop will leave the cart partially cleared.
         items = self.get_items(session_id)
         for item in items:
             self.delete_item(session_id, item["productId"])

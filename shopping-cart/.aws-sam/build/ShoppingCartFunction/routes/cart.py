@@ -1,15 +1,25 @@
 from flask import Blueprint, jsonify, request
 from services.cart_service import CartService
+from services.discount_service import DiscountService
 
 cart_bp = Blueprint("cart", __name__)
 cart_service = CartService()
+discount_service = DiscountService()
 
+# Hardcoded for the workshop — in production replace with a real identity
+# (e.g. JWT sub or Cognito user ID) so each user gets an isolated cart.
 SESSION_ID = "workshop-user"
 
 
 @cart_bp.route("", methods=["GET"])
 def get_cart():
-    cart = cart_service.get_cart(SESSION_ID)
+    code = request.args.get("code")
+    discount = None
+    if code:
+        # Pre-fetch cart subtotal to calculate discount amount
+        base_cart = cart_service.get_cart(SESSION_ID)
+        discount = discount_service.validate(code, base_cart["subtotal"])
+    cart = cart_service.get_cart(SESSION_ID, discount=discount)
     return jsonify(cart)
 
 
@@ -19,9 +29,12 @@ def add_item():
     if not body or "productId" not in body:
         return jsonify({"error": "productId is required"}), 400
 
-    quantity = body.get("quantity", 1)
-    if quantity < 1:
-        return jsonify({"error": "Quantity must be at least 1"}), 400
+    try:
+        quantity = int(body.get("quantity", 1))
+    except (TypeError, ValueError):
+        return jsonify({"error": "Quantity must be an integer"}), 400
+    if quantity < 1 or quantity > 1000:
+        return jsonify({"error": "Quantity must be between 1 and 1000"}), 400
 
     result = cart_service.add_item(SESSION_ID, body["productId"], quantity)
     if "error" in result:
@@ -35,9 +48,12 @@ def update_item(product_id):
     if not body or "quantity" not in body:
         return jsonify({"error": "quantity is required"}), 400
 
-    quantity = body["quantity"]
-    if quantity < 0:
-        return jsonify({"error": "Quantity cannot be negative"}), 400
+    try:
+        quantity = int(body["quantity"])
+    except (TypeError, ValueError):
+        return jsonify({"error": "Quantity must be an integer"}), 400
+    if quantity < 0 or quantity > 1000:
+        return jsonify({"error": "Quantity must be between 0 and 1000"}), 400
 
     if quantity == 0:
         result = cart_service.remove_item(SESSION_ID, product_id)

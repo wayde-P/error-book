@@ -1,0 +1,5 @@
+{
+  "name": "deploy-plugin",
+  "description": "Deploy and verify the shopping cart application",
+  "version": "1.0.0"
+}
