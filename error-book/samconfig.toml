@@ -3,5 +3,6 @@ version = 0.1
 [default.deploy.parameters]
 stack_name = "error-book"
 region = "us-east-1"
-confirm_changeset = true
+confirm_changeset = false
 capabilities = "CAPABILITY_IAM"
+resolve_s3 = true

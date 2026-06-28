@@ -68,6 +68,7 @@ export default function ErrorBankPage() {
       <div className="flex items-center justify-between mb-4">
         <h1 className="text-2xl font-bold text-gray-800">
           错题库
+          <span className="ml-2 text-xs text-gray-400">v3</span>
           {selectedSubject && (
             <span className="ml-2 text-base font-normal text-indigo-600">· {selectedSubject}</span>
           )}

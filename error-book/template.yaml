@@ -12,7 +12,6 @@ Globals:
         TABLE_NAME: !Ref ErrorBookTable
         IMAGES_BUCKET: !Ref ImagesBucket
         COGNITO_USER_POOL_ID: !Ref UserPool
-        ANTHROPIC_API_KEY: !Sub '{{resolve:ssm:/error-book/anthropic-api-key}}'
 
 Resources:
   UserPool:
@@ -113,6 +112,12 @@ Resources:
                   - s3:GetObject
                   - s3:PutObject
                 Resource: !Sub '${ImagesBucket.Arn}/*'
+              - Effect: Allow
+                Action:
+                  - bedrock:InvokeModel
+                Resource:
+                  - 'arn:aws:bedrock:*::foundation-model/anthropic.claude-sonnet-4-6*'
+                  - 'arn:aws:bedrock:*:*:inference-profile/us.anthropic.claude-sonnet-4-6*'
 
   BackendFunction:
     Type: AWS::Serverless::Function
@@ -129,6 +134,14 @@ Resources:
             Method: ANY
             Auth:
               Authorizer: CognitoAuthorizer
+        ApiOptions:
+          Type: Api
+          Properties:
+            RestApiId: !Ref ErrorBookApi
+            Path: /{proxy+}
+            Method: OPTIONS
+            Auth:
+              Authorizer: NONE
 
   ErrorBookApi:
     Type: AWS::Serverless::Api
@@ -140,11 +153,10 @@ Resources:
         AllowOrigin: "'*'"
       Auth:
         DefaultAuthorizer: CognitoAuthorizer
+        AddDefaultAuthorizerToCorsPreflight: false
         Authorizers:
           CognitoAuthorizer:
             UserPoolArn: !GetAtt UserPool.Arn
-            AuthorizationScopes:
-              - openid
 
   FrontendBucket:
     Type: AWS::S3::Bucket

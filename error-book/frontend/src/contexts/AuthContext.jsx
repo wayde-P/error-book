@@ -28,7 +28,7 @@ export function AuthProvider({ children }) {
 
   async function getToken() {
     const session = await fetchAuthSession()
-    return session.tokens?.accessToken?.toString()
+    return session.tokens?.idToken?.toString()
   }
 
   const value = {
