@@ -223,12 +223,11 @@ SK:  TAG#{tagId}
   createdAt:  string        # ISO8601
 ```
 
-#### GSI（全局二级索引）
+#### 查询策略
 
-| GSI 名 | PK | SK | 用途 |
-|--------|----|----|------|
-| GSI-TagQuery | `USER#{userId}#TAG#{tagId}` | `createdAt` | 按标签筛选错题 |
-| GSI-Search | `USER#{userId}` | `content` | 关键词前缀搜索 |
+- **按标签筛选**：主表 Query `PK=USER#{userId}`，再用 `FilterExpression: contains(tags, tagId)`。错题本数据量小（单用户百~千条），FilterExpression 足够，无需额外 GSI。
+- **关键词搜索**：同上，`FilterExpression: contains(content, keyword)`，前端搜索框触发。
+- **GSI-ByDate**：`PK=USER#{userId}`，`SK=createdAt`，支持按时间排序分页查询。
 
 ---
 
