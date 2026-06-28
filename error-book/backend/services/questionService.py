@@ -2,7 +2,7 @@ import boto3
 import uuid
 from datetime import datetime, timezone
 from typing import List, Optional
-from models.question import Question, QuestionCreate, QuestionUpdate
+from models.question import Question, QuestionCreate, ManualQuestionCreate, QuestionUpdate
 from services.recognition import RecognitionService
 from config import tableName, imagesBucket, awsRegion
 
@@ -21,11 +21,12 @@ class QuestionService:
         )
 
     def _item_to_question(self, item: dict) -> Question:
+        imageKey = item.get("imageKey")
         return Question(
             questionId=item["questionId"],
             userId=item["userId"],
-            imageKey=item["imageKey"],
-            imageUrl=self._presign(item["imageKey"]),
+            imageKey=imageKey,
+            imageUrl=self._presign(imageKey) if imageKey else None,
             subject=item.get("subject", ""),
             content=item.get("content", ""),
             analysis=item.get("analysis", ""),
@@ -34,30 +35,19 @@ class QuestionService:
             createdAt=item["createdAt"],
         )
 
-    def create_question(self, userId: str, data: QuestionCreate) -> Question:
+    def create_manual_question(self, userId: str, data: ManualQuestionCreate) -> Question:
         questionId = str(uuid.uuid4())
         createdAt = datetime.now(timezone.utc).isoformat()
-        status = "done"
-        subject, content, analysis = data.subject or "", "", ""
-        try:
-            result = self.recog.recognize(data.imageKey)
-            subject = result.get("subject", subject)
-            content = result.get("content", "")
-            analysis = result.get("analysis", "")
-        except Exception:
-            status = "failed"
-
         item = {
             "PK": f"USER#{userId}",
             "SK": f"QUESTION#{questionId}",
             "questionId": questionId,
             "userId": userId,
-            "imageKey": data.imageKey,
-            "subject": subject,
-            "content": content,
-            "analysis": analysis,
+            "subject": data.subject,
+            "content": data.content,
+            "analysis": data.analysis or "",
             "tags": [],
-            "status": status,
+            "status": "done",
             "createdAt": createdAt,
         }
         for attempt in range(3):
@@ -68,6 +58,58 @@ class QuestionService:
                 if attempt == 2:
                     raise
         return self._item_to_question(item)
+
+    def create_questions_from_image(self, userId: str, data: QuestionCreate) -> List[Question]:
+        try:
+            recognized = self.recog.recognize(data.imageKey)
+        except Exception:
+            recognized = []
+
+        if not recognized:
+            questionId = str(uuid.uuid4())
+            createdAt = datetime.now(timezone.utc).isoformat()
+            item = {
+                "PK": f"USER#{userId}",
+                "SK": f"QUESTION#{questionId}",
+                "questionId": questionId,
+                "userId": userId,
+                "imageKey": data.imageKey,
+                "subject": data.subject or "",
+                "content": "",
+                "analysis": "",
+                "tags": [],
+                "status": "failed",
+                "createdAt": createdAt,
+            }
+            self.table.put_item(Item=item)
+            return [self._item_to_question(item)]
+
+        questions = []
+        createdAt = datetime.now(timezone.utc).isoformat()
+        for r in recognized:
+            questionId = str(uuid.uuid4())
+            item = {
+                "PK": f"USER#{userId}",
+                "SK": f"QUESTION#{questionId}",
+                "questionId": questionId,
+                "userId": userId,
+                "imageKey": data.imageKey,
+                "subject": r.get("subject", ""),
+                "content": r.get("content", ""),
+                "analysis": r.get("analysis", ""),
+                "tags": [],
+                "status": "done",
+                "createdAt": createdAt,
+            }
+            for attempt in range(3):
+                try:
+                    self.table.put_item(Item=item)
+                    break
+                except Exception:
+                    if attempt == 2:
+                        raise
+            questions.append(self._item_to_question(item))
+        return questions
 
     def list_questions(self, userId: str, tagId: Optional[str], keyword: Optional[str], lastKey: Optional[str]) -> dict:
         import json
