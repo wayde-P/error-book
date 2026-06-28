@@ -14,11 +14,20 @@ SESSION_ID = "workshop-user"
 
 @orders_bp.route("", methods=["POST"])
 def create_order():
+    """Create a new order from the current cart contents."""
     body = request.get_json() or {}
     shipping_address = body.get("shippingAddress")
 
     if not shipping_address:
         return jsonify({"error": "shippingAddress is required"}), 400
+    if not isinstance(shipping_address, str):
+        return jsonify({"error": "shippingAddress must be a string"}), 400
+    if not shipping_address.strip():
+        return jsonify({"error": "shippingAddress must not be blank"}), 400
+
+    discount_code = body.get("discountCode")
+    if discount_code is not None and not isinstance(discount_code, str):
+        return jsonify({"error": "discountCode must be a string"}), 400
 
     cart = cart_service.get_cart(SESSION_ID)
     if not cart["items"]:
@@ -26,7 +35,6 @@ def create_order():
 
     # Re-validate discount at checkout time to guard against codes expiring
     # between the cart page and order submission.
-    discount_code = body.get("discountCode")
     discount = None
     if discount_code:
         discount = discount_service.validate(discount_code, cart["subtotal"])
@@ -53,12 +61,14 @@ def create_order():
 
 @orders_bp.route("", methods=["GET"])
 def list_orders():
+    """Return all orders for the current session."""
     orders = order_service.get_orders(SESSION_ID)
     return jsonify({"orders": orders, "count": len(orders)})
 
 
 @orders_bp.route("/<order_id>", methods=["GET"])
-def get_order(order_id):
+def get_order(order_id: str):
+    """Return a single order by ID, or 404 if not found."""
     order = order_service.get_order(SESSION_ID, order_id)
     if not order:
         return jsonify({"error": "Order not found"}), 404

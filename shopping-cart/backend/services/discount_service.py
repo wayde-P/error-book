@@ -1,11 +1,13 @@
 from datetime import datetime, timezone
 from decimal import Decimal
 from models.discount import DiscountModel
+from config import TAX_RATE
 
 
 class DiscountService:
 
     def __init__(self):
+        """Initialize DiscountService with the discount model."""
         self.model = DiscountModel()
 
     def validate(self, code: str, subtotal: float):
@@ -21,19 +23,20 @@ class DiscountService:
                 return None
 
         # Check usage cap (0 = unlimited)
-        max_uses = record.get("maxUses", 0)
-        if max_uses and int(record.get("usedCount", 0)) >= max_uses:
+        maxUses = record.get("maxUses", 0)
+        if maxUses and int(record.get("usedCount", 0)) >= maxUses:
             return None
 
-        discount_amount = self.calculate_discount(record, subtotal)
+        discountAmount = self.calculate_discount(record, subtotal)
         return {
             "code": record["code"],
             "type": record["type"],
             "value": record["value"],
-            "discountAmount": discount_amount,
+            "discountAmount": discountAmount,
         }
 
     def calculate_discount(self, discount: dict, subtotal: float) -> float:
+        """Calculate and return the discount amount for the given discount record and subtotal."""
         dtype = discount.get("type")
         value = float(discount.get("value", 0))
         if dtype == "percent":
@@ -58,14 +61,14 @@ class DiscountService:
             return cart
 
         subtotal = cart["subtotal"]
-        discount_amount = discount["discountAmount"]
-        discounted_subtotal = max(0.0, round(subtotal - discount_amount, 2))
-        tax = round(discounted_subtotal * 0.08, 2)
-        total = round(discounted_subtotal + tax, 2)
+        discountAmount = discount["discountAmount"]
+        discountedSubtotal = max(0.0, round(subtotal - discountAmount, 2))
+        tax = round(discountedSubtotal * float(TAX_RATE), 2)
+        total = round(discountedSubtotal + tax, 2)
 
         cart["discountCode"] = discount["code"]
-        cart["discountAmount"] = discount_amount
-        cart["discountedSubtotal"] = discounted_subtotal
+        cart["discountAmount"] = discountAmount
+        cart["discountedSubtotal"] = discountedSubtotal
         cart["tax"] = tax
         cart["total"] = total
         return cart

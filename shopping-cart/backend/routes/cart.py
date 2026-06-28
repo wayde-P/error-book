@@ -13,7 +13,10 @@ SESSION_ID = "workshop-user"
 
 @cart_bp.route("", methods=["GET"])
 def get_cart():
+    """Return the current cart, optionally with a discount applied."""
     code = request.args.get("code")
+    if code is not None and not code.strip():
+        return jsonify({"error": "code must be a non-empty string"}), 400
     discount = None
     if code:
         # Pre-fetch cart subtotal to calculate discount amount
@@ -25,9 +28,14 @@ def get_cart():
 
 @cart_bp.route("/items", methods=["POST"])
 def add_item():
-    body = request.get_json()
+    """Add a product to the cart. Requires productId; quantity defaults to 1."""
+    body = request.get_json(silent=True)
     if not body or "productId" not in body:
         return jsonify({"error": "productId is required"}), 400
+
+    product_id = body["productId"]
+    if not isinstance(product_id, str) or not product_id.strip():
+        return jsonify({"error": "productId must be a non-empty string"}), 400
 
     try:
         quantity = int(body.get("quantity", 1))
@@ -36,15 +44,16 @@ def add_item():
     if quantity < 1 or quantity > 1000:
         return jsonify({"error": "Quantity must be between 1 and 1000"}), 400
 
-    result = cart_service.add_item(SESSION_ID, body["productId"], quantity)
+    result = cart_service.add_item(SESSION_ID, product_id, quantity)
     if "error" in result:
         return jsonify(result), 404
     return jsonify(result), 201
 
 
 @cart_bp.route("/items/<product_id>", methods=["PUT"])
-def update_item(product_id):
-    body = request.get_json()
+def update_item(product_id: str):
+    """Update quantity of a cart item. Set quantity to 0 to remove the item."""
+    body = request.get_json(silent=True)
     if not body or "quantity" not in body:
         return jsonify({"error": "quantity is required"}), 400
 
@@ -66,7 +75,8 @@ def update_item(product_id):
 
 
 @cart_bp.route("/items/<product_id>", methods=["DELETE"])
-def remove_item(product_id):
+def remove_item(product_id: str):
+    """Remove a specific item from the cart."""
     result = cart_service.remove_item(SESSION_ID, product_id)
     if "error" in result:
         return jsonify(result), 404
@@ -75,5 +85,6 @@ def remove_item(product_id):
 
 @cart_bp.route("", methods=["DELETE"])
 def clear_cart():
+    """Remove all items from the cart."""
     cart_service.clear_cart(SESSION_ID)
     return jsonify({"message": "Cart cleared"})

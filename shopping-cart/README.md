@@ -54,6 +54,7 @@ shopping-cart/
 │   └── tests/
 │       ├── test_cart_service.py       # 购物车服务单元测试（19 个：添加/删除/更新/合计）
 │       ├── test_cart_service_discount.py # 购物车折扣集成测试（3 个）
+│       ├── test_cart_routes.py        # 购物车路由输入验证测试（15 个）
 │       ├── test_discount_service.py   # 折扣服务单元测试（18 个）
 │       └── test_discount_routes.py    # 折扣路由测试（4 个）
 ├── frontend/
