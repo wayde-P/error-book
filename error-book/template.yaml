@@ -104,6 +104,74 @@ Resources:
         IgnorePublicAcls: true
         RestrictPublicBuckets: true
 
+  BackendFunctionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: ErrorBookPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:GetItem
+                  - dynamodb:PutItem
+                  - dynamodb:UpdateItem
+                  - dynamodb:DeleteItem
+                  - dynamodb:Query
+                Resource:
+                  - !GetAtt ErrorBookTable.Arn
+                  - !Sub '${ErrorBookTable.Arn}/index/*'
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:PutObject
+                Resource: !Sub '${ImagesBucket.Arn}/*'
+              - Effect: Allow
+                Action: s3:GeneratePresignedUrl
+                Resource: '*'
+
+  BackendFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: backend/
+      Handler: handler.handler
+      Role: !GetAtt BackendFunctionRole.Arn
+      Events:
+        ApiProxy:
+          Type: Api
+          Properties:
+            RestApiId: !Ref ErrorBookApi
+            Path: /{proxy+}
+            Method: ANY
+            Auth:
+              Authorizer: CognitoAuthorizer
+
+  ErrorBookApi:
+    Type: AWS::Serverless::Api
+    Properties:
+      StageName: prod
+      Cors:
+        AllowMethods: "'GET,POST,PUT,DELETE,OPTIONS'"
+        AllowHeaders: "'Content-Type,Authorization'"
+        AllowOrigin: "'*'"
+      Auth:
+        DefaultAuthorizer: CognitoAuthorizer
+        Authorizers:
+          CognitoAuthorizer:
+            UserPoolArn: !GetAtt UserPool.Arn
+            AuthorizationScopes:
+              - openid
+
 Outputs:
   UserPoolId:
     Value: !Ref UserPool
@@ -121,3 +189,7 @@ Outputs:
     Value: !Ref ErrorBookTable
     Export:
       Name: ErrorBook-TableName
+  ApiEndpoint:
+    Value: !Sub 'https://${ErrorBookApi}.execute-api.${AWS::Region}.amazonaws.com/prod'
+    Export:
+      Name: ErrorBook-ApiEndpoint
