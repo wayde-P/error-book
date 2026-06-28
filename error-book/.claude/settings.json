@@ -1,0 +1,31 @@
+{
+  "permissions": {
+    "deny": []
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "if grep -q 'rm -rf'; then echo 'Blocked: rm -rf is not allowed' >&2; exit 2; fi"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/workshop/shopping-cart/.claude/update-readme.sh",
+            "timeout": 10,
+            "statusMessage": "检查 README 是否需要更新..."
+          }
+        ]
+      }
+    ]
+  }
+}
