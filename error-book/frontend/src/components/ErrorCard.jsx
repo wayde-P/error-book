@@ -18,7 +18,15 @@ export default function ErrorCard({ question, tags = [] }) {
             <span className="text-xs font-medium text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded">
               {question.subject || '未分类'}
             </span>
-            <span className="text-xs text-gray-400">{question.createdAt?.slice(0, 10)}</span>
+            <span className="text-xs text-gray-400">
+              {question.createdAt
+                ? new Date(question.createdAt).toLocaleString('zh-CN', {
+                    year: 'numeric', month: '2-digit', day: '2-digit',
+                    hour: '2-digit', minute: '2-digit', second: '2-digit',
+                    hour12: false,
+                  })
+                : ''}
+            </span>
           </div>
           <p className="text-sm text-gray-700 line-clamp-2">{question.content || '识别失败'}</p>
           {question.tags?.length > 0 && (
