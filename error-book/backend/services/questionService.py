@@ -79,15 +79,22 @@ class QuestionService:
             kwargs["ExclusiveStartKey"] = json.loads(base64.b64decode(lastKey))
 
         if tagId:
+            # Filter questions that contain this tag
             resp = self.table.query(
-                IndexName="TagIndex",
-                KeyConditionExpression=Key("tagPK").eq(f"USER#{userId}#TAG#{tagId}"),
+                KeyConditionExpression=Key("PK").eq(f"USER#{userId}") & Key("SK").begins_with("QUESTION#"),
+                ScanIndexForward=False,
                 **kwargs,
             )
+            items = [i for i in resp["Items"] if tagId in i.get("tags", [])]
+            # Note: pagination is approximate with this approach
+            nextKey = None
+            return {"items": [self._item_to_question(i) for i in items], "nextKey": nextKey}
         elif keyword:
+            from boto3.dynamodb.conditions import Attr
             resp = self.table.query(
-                IndexName="ContentIndex",
-                KeyConditionExpression=Key("PK").eq(f"USER#{userId}") & Key("content").begins_with(keyword),
+                KeyConditionExpression=Key("PK").eq(f"USER#{userId}") & Key("SK").begins_with("QUESTION#"),
+                FilterExpression=Attr("content").contains(keyword),
+                ScanIndexForward=False,
                 **kwargs,
             )
         else:
@@ -112,6 +119,8 @@ class QuestionService:
 
     def update_question(self, userId: str, questionId: str, data: QuestionUpdate) -> Question:
         updates = {k: v for k, v in data.model_dump().items() if v is not None}
+        if not updates:
+            return self.get_question(userId, questionId)
         expr = "SET " + ", ".join(f"#{k} = :{k}" for k in updates)
         names = {f"#{k}": k for k in updates}
         values = {f":{k}": v for k, v in updates.items()}

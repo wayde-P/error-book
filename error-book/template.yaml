@@ -59,34 +59,11 @@ Resources:
           AttributeType: S
         - AttributeName: SK
           AttributeType: S
-        - AttributeName: tagPK
-          AttributeType: S
-        - AttributeName: createdAt
-          AttributeType: S
-        - AttributeName: content
-          AttributeType: S
       KeySchema:
         - AttributeName: PK
           KeyType: HASH
         - AttributeName: SK
           KeyType: RANGE
-      GlobalSecondaryIndexes:
-        - IndexName: TagIndex
-          KeySchema:
-            - AttributeName: tagPK
-              KeyType: HASH
-            - AttributeName: createdAt
-              KeyType: RANGE
-          Projection:
-            ProjectionType: ALL
-        - IndexName: ContentIndex
-          KeySchema:
-            - AttributeName: PK
-              KeyType: HASH
-            - AttributeName: content
-              KeyType: RANGE
-          Projection:
-            ProjectionType: ALL
 
   ImagesBucket:
     Type: AWS::S3::Bucket
@@ -136,9 +113,6 @@ Resources:
                   - s3:GetObject
                   - s3:PutObject
                 Resource: !Sub '${ImagesBucket.Arn}/*'
-              - Effect: Allow
-                Action: s3:GeneratePresignedUrl
-                Resource: '*'
 
   BackendFunction:
     Type: AWS::Serverless::Function

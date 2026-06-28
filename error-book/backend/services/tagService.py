@@ -32,8 +32,17 @@ class TagService:
         return [Tag(**{k: v for k, v in item.items() if k in Tag.model_fields})
                 for item in resp["Items"]]
 
+    def get_tag(self, userId: str, tagId: str) -> Tag:
+        resp = self.table.get_item(Key={"PK": f"USER#{userId}", "SK": f"TAG#{tagId}"})
+        item = resp.get("Item")
+        if not item:
+            raise KeyError(f"Tag {tagId} not found")
+        return Tag(**{k: v for k, v in item.items() if k in Tag.model_fields})
+
     def update_tag(self, userId: str, tagId: str, data: TagUpdate) -> Tag:
         updates = {k: v for k, v in data.model_dump().items() if v is not None}
+        if not updates:
+            return self.get_tag(userId, tagId)
         expr = "SET " + ", ".join(f"#{k} = :{k}" for k in updates)
         names = {f"#{k}": k for k in updates}
         values = {f":{k}": v for k, v in updates.items()}
