@@ -13,6 +13,7 @@ export default function ErrorBankPage() {
   const [tags, setTags] = useState([])
   const [loading, setLoading] = useState(true)
   const [page, setPage] = useState(1)
+  const [showAll, setShowAll] = useState(false)
   const [sortBySubject, setSortBySubject] = useState(false)
 
   const selectedTag = searchParams.get('tagId')
@@ -26,6 +27,7 @@ export default function ErrorBankPage() {
   useEffect(() => {
     setLoading(true)
     setPage(1)
+    setShowAll(false)
     const params = {}
     if (selectedTag) params.tagId = selectedTag
     if (keyword) params.keyword = keyword
@@ -56,7 +58,7 @@ export default function ErrorBankPage() {
     : questions
 
   const totalPages = Math.max(1, Math.ceil(displayed.length / PAGE_SIZE))
-  const pageItems = displayed.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
+  const pageItems = showAll ? displayed : displayed.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
 
   return (
     <div className="max-w-3xl mx-auto px-4 py-8">
@@ -106,11 +108,21 @@ export default function ErrorBankPage() {
       ) : (
         <>
           <div className="space-y-3">
-            {pageItems.map(q => <ErrorCard key={q.questionId} question={q} tags={tags} />)}
+            {pageItems.map(q => (
+              <ErrorCard key={q.questionId} question={q} tags={tags}
+                onSubjectChange={(qId, newSubject) =>
+                  setQuestions(qs => qs.map(x => x.questionId === qId ? { ...x, subject: newSubject } : x))
+                }
+              />
+            ))}
           </div>
-          {totalPages > 1 && (
-            <Pagination page={page} totalPages={totalPages} onPageChange={setPage} />
-          )}
+          <Pagination
+            page={page}
+            totalPages={totalPages}
+            onPageChange={setPage}
+            showAll={showAll}
+            onToggleShowAll={() => { setShowAll(v => !v); setPage(1) }}
+          />
         </>
       )}
     </div>
