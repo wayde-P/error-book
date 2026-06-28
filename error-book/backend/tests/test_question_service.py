@@ -1,6 +1,6 @@
 import pytest
 from unittest.mock import MagicMock, patch
-from models.question import QuestionCreate, QuestionUpdate
+from models.question import QuestionCreate, QuestionUpdate, ManualQuestionCreate
 from services.questionService import QuestionService
 
 @pytest.fixture
@@ -65,6 +65,18 @@ def test_list_questions_no_filter(mock_deps):
     svc = QuestionService()
     result = svc.list_questions("user1", tagId=None, keyword=None, lastKey=None)
     assert len(result["items"]) == 1
+
+def test_create_manual_question(mock_deps):
+    table, _, s3 = mock_deps
+    table.put_item.return_value = {}
+    svc = QuestionService()
+    q = svc.create_manual_question("user1", ManualQuestionCreate(subject="数学", content="1+1=?", analysis="加法"))
+    assert q.status == "done"
+    assert q.subject == "数学"
+    assert q.content == "1+1=?"
+    assert q.userId == "user1"
+    assert q.imageKey is None
+
 
 def test_delete_question(mock_deps):
     table, _, _ = mock_deps
