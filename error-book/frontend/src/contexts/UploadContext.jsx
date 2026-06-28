@@ -33,7 +33,7 @@ export function UploadProvider({ children }) {
       id: crypto.randomUUID(),
       file,
       status: 'pending',
-      question: null,
+      questions: [],
     }))
     setQueue(q => [...q, ...newItems])
     newItems.forEach(item => processFile(item.id, item.file))
