@@ -2,6 +2,7 @@ import base64
 import json
 from typing import List
 import boto3
+from json_repair import repair_json
 from config import imagesBucket, awsRegion
 
 BEDROCK_MODEL_ID = "us.anthropic.claude-sonnet-4-6"
@@ -69,5 +70,11 @@ class RecognitionService:
         result = json.loads(response["body"].read())
         for block in result.get("content", []):
             if block.get("type") == "tool_use" and block.get("name") == "save_questions":
-                return block["input"]["questions"]
+                questions = block["input"]["questions"]
+                if isinstance(questions, str):
+                    try:
+                        questions = json.loads(questions)
+                    except json.JSONDecodeError:
+                        questions = json.loads(repair_json(questions))
+                return questions
         raise ValueError(f"未收到工具调用响应: {str(result)[:200]}")
