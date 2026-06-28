@@ -15,18 +15,16 @@ export function UploadProvider({ children }) {
   async function processFile(id, file) {
     updateItem(id, { status: 'uploading' })
     try {
-      // 1. 获取 presigned URL
       const { data: { url, key } } = await apiClient.get('/upload/presigned-url', {
         params: { filename: file.name, contentType: file.type },
       })
-      // 2. 直传 S3（不带 JWT header）
       await axios.put(url, file, { headers: { 'Content-Type': file.type } })
       updateItem(id, { status: 'recognizing' })
-      // 3. 触发识别
-      const { data: question } = await apiClient.post('/questions/recognize', { imageKey: key })
-      updateItem(id, { status: question.status === 'failed' ? 'failed' : 'done', question })
+      const { data: questions } = await apiClient.post('/questions/recognize', { imageKey: key })
+      const allFailed = questions.every(q => q.status === 'failed')
+      updateItem(id, { status: allFailed ? 'failed' : 'done', questions })
     } catch {
-      updateItem(id, { status: 'failed' })
+      updateItem(id, { status: 'failed', questions: [] })
     }
   }
 
