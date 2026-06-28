@@ -1,20 +1,26 @@
-# 错题本项目设计文档
+# 错题本系统设计文档
 
-**日期**：2026-06-28  
-**状态**：已确认  
-**目标用户**：家长和中小学生
-
----
-
-## 1. 项目概述
-
-用户通过手机或电脑上传题目照片，系统自动用 Claude Vision 识别题目内容，将识别结果保存到该用户的错题库。用户可以给错题打标签分类，并通过搜索和标签筛选快速找到题目。
+**日期：** 2026-06-28
+**状态：** 已确认
 
 ---
 
-## 2. 整体架构
+## 概述
 
-### 架构图
+面向家长和学生的错题管理系统。用户上传题目照片，系统通过 Claude Vision 自动识别题目内容并结构化存储，支持标签分类和搜索管理。
+
+**技术选型：**
+- 前端：React 19 + Tailwind CSS
+- 后端：FastAPI + Mangum（AWS Lambda）
+- 认证：AWS Cognito + API Gateway JWT Authorizer
+- 数据库：DynamoDB（单表设计）
+- 图片存储：S3（前端 presigned URL 直传）
+- AI 识别：Claude Vision（claude-sonnet-4-6）
+- 托管：CloudFront + S3 静态托管
+
+---
+
+## 整体架构
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
@@ -60,61 +66,35 @@
 └─────────────────────────────────────────────────────────────┘
 ```
 
-### 技术选型
+### 关键数据流
 
-| 层 | 技术 | 说明 |
-|----|------|------|
-| 前端 | React 19 + Tailwind CSS | SPA，部署到 S3+CloudFront |
-| 认证 | AWS Cognito User Pool | JWT 签发，API Gateway JWT Authorizer |
-| API 层 | API Gateway REST API | JWT 鉴权，CORS 限制 CloudFront 域名 |
-| 后端 | FastAPI + Mangum | 单 Lambda 函数，Mangum 适配 ASGI |
-| AI 识别 | Claude Vision（claude-sonnet-4-6） | 图片直接识别，返回结构化题目数据 |
-| 数据库 | DynamoDB | 单表设计，GSI 支持标签查询和搜索 |
-| 图片存储 | S3 | Presigned URL 前端直传，路径按用户隔离 |
+**图片上传 & 识别流程：**
+1. 前端向 API 请求 S3 Presigned URL（GET `/upload/presigned-url`）
+2. 前端直接上传图片到 S3（不经 Lambda，节省带宽费用）
+3. 前端通知后端开始识别（POST `/questions/recognize`）
+4. Lambda 从 S3 读取图片 → 调用 Claude Vision API → 解析结构化数据
+5. 写入 DynamoDB，返回题目记录
 
----
-
-## 3. 关键业务流程
-
-### 图片上传 & 识别流程
-
-```
-1. 用户选择多张图片
-2. 前端为每张图片独立显示进度卡片（待上传）
-3. 逐张处理：
-   a. 请求 GET /upload/presigned-url → 获取 S3 presigned URL
-   b. 前端直传图片到 S3（进度：上传中）
-   c. 调用 POST /questions/recognize（传入 S3 key）
-   d. Lambda 读取 S3 图片 → 调用 Claude Vision → 解析结构化题目
-   e. 写入 DynamoDB（进度：识别完成 ✓ / 识别失败 ✗）
-4. 全部完成后，前端跳转到错题库
-```
-
-### 认证流程
-
-```
-1. 用户通过 Cognito Hosted UI 或自定义表单登录
-2. Cognito 返回 Access Token（JWT）+ Refresh Token
-3. 前端将 Token 存入内存（Access）+ localStorage（Refresh）
-4. Axios 拦截器自动在每次请求加 Authorization: Bearer <token>
-5. API Gateway JWT Authorizer 验证 Token，提取 userId（sub claim）
-6. Token 过期（401）时，拦截器自动用 Refresh Token 换新 Token
-```
+**认证流程：**
+1. Cognito 签发 JWT Token
+2. 前端每次请求携带 `Authorization: Bearer <token>` header
+3. API Gateway JWT Authorizer 验证 Token，提取 `userId` 写入请求上下文
+4. Lambda 从请求上下文取 `userId`，所有查询强制隔离
 
 ---
 
-## 4. 前端结构
+## 前端结构
 
 ### 页面
 
-| 页面 | 路由 | 说明 |
+| 页面 | 路径 | 说明 |
 |------|------|------|
-| LoginPage | `/login` | Cognito 登录/注册 |
-| DashboardPage | `/` | 错题统计概览 |
-| UploadPage | `/upload` | 图片上传 + 实时进度 |
-| ErrorBankPage | `/errors` | 错题库列表 + 搜索 + 标签筛选 |
-| ErrorDetailPage | `/errors/:id` | 单题详情 + 编辑标签 |
-| TagsPage | `/tags` | 标签管理 |
+| LoginPage | `/login` | 自定义登录/注册表单（使用 aws-amplify Auth，React 19 + Tailwind 样式） |
+| DashboardPage | `/` | 错题统计概览（总数、各标签分布） |
+| UploadPage | `/upload` | 图片上传 + 实时进度展示 |
+| ErrorBankPage | `/errors` | 错题库列表、搜索、标签筛选 |
+| ErrorDetailPage | `/errors/:id` | 单题详情、编辑标签、查看原图 |
+| TagsPage | `/tags` | 标签管理（增删改） |
 
 ### 目录结构
 
@@ -128,48 +108,50 @@ src/
 │   ├── ErrorDetailPage.jsx
 │   └── TagsPage.jsx
 ├── components/
-│   ├── UploadDropzone.jsx      # 拖拽/多选上传区域
-│   ├── UploadProgressCard.jsx  # 单张图片识别进度卡片
-│   ├── ErrorCard.jsx           # 错题卡片（列表展示）
-│   ├── TagBadge.jsx            # 标签徽章
-│   ├── SearchBar.jsx           # 全局搜索框
-│   └── NavBar.jsx              # 顶部导航
+│   ├── UploadDropzone.jsx     # 拖拽/多选上传区域
+│   ├── UploadProgressCard.jsx # 单张图片识别进度卡片
+│   ├── ErrorCard.jsx          # 错题卡片
+│   ├── TagBadge.jsx           # 标签徽章
+│   ├── SearchBar.jsx          # 搜索框
+│   └── NavBar.jsx             # 顶部导航
 ├── contexts/
-│   ├── AuthContext.jsx         # Cognito JWT 状态管理
-│   └── UploadContext.jsx       # 上传队列状态
+│   ├── AuthContext.jsx        # Cognito JWT 状态
+│   └── UploadContext.jsx      # 上传队列状态
 └── api/
-    └── client.js               # Axios 实例，自动带 JWT header
+    └── client.js              # Axios 实例，自动带 JWT header
 ```
 
-### 上传进度 UI
+### 上传进度 UI 交互
 
-每张图片独立显示状态：
+用户选择多张图片后，每张图片独立显示进度卡片：
 
 ```
-[图片1.jpg] ████████░░  上传中 (80%)
-[图片2.jpg] ██████████  识别完成 ✓
-[图片3.jpg] ░░░░░░░░░░  等待中...
-[图片4.jpg] ██████████  识别失败 ✗ [重试]
+[图片1] ████████░░  上传中...
+[图片2] ████████████ 识别中...
+[图片3] ████████████ 完成 ✓
+[图片4] ░░░░░░░░░░  等待中...
 ```
+
+每张图片有独立状态：`pending` → `uploading` → `recognizing` → `done` / `failed`
 
 ---
 
-## 5. 后端 API 设计
+## 后端 API
 
-### 路由列表
+### 路由设计
 
-| Method | Path | 说明 | 认证 |
-|--------|------|------|------|
-| POST | `/auth/refresh` | 刷新 Cognito Token | 否 |
-| GET | `/upload/presigned-url` | 获取 S3 上传 presigned URL | JWT |
-| POST | `/questions/recognize` | 触发 Claude Vision 识别 | JWT |
-| GET | `/questions` | 错题列表（搜索+标签筛选） | JWT |
-| GET | `/questions/{id}` | 单题详情 | JWT |
-| PUT | `/questions/{id}` | 编辑题目内容/标签 | JWT |
-| DELETE | `/questions/{id}` | 删除错题 | JWT |
-| GET | `/tags` | 用户标签列表 | JWT |
-| POST | `/tags` | 创建标签 | JWT |
-| DELETE | `/tags/{id}` | 删除标签 | JWT |
+| Method | Path | JWT 鉴权 | 说明 |
+|--------|------|---------|------|
+| GET | `/upload/presigned-url` | 是 | 获取 S3 上传 presigned URL |
+| POST | `/questions/recognize` | 是 | 触发 Claude Vision 识别 |
+| GET | `/questions` | 是 | 错题列表（支持搜索+标签筛选+分页） |
+| GET | `/questions/{id}` | 是 | 单题详情 |
+| PUT | `/questions/{id}` | 是 | 编辑题目内容/标签 |
+| DELETE | `/questions/{id}` | 是 | 删除错题 |
+| GET | `/tags` | 是 | 用户标签列表 |
+| POST | `/tags` | 是 | 创建标签 |
+| PUT | `/tags/{id}` | 是 | 编辑标签 |
+| DELETE | `/tags/{id}` | 是 | 删除标签 |
 
 ### Lambda 目录结构
 
@@ -192,78 +174,74 @@ backend/
 
 ---
 
-## 6. 数据模型
+## 数据模型（DynamoDB 单表设计）
 
-### DynamoDB 单表设计（表名：`ErrorBook`）
+**表名：** `ErrorBook`
 
-#### 错题记录
+### 数据结构
 
 ```
-PK:  USER#{userId}
-SK:  QUESTION#{questionId}
+# 错题记录
+PK: USER#{userId}
+SK: QUESTION#{questionId}
 属性:
-  imageUrl:   string        # S3 图片 URL
-  subject:    string        # 学科（数学/语文/英语等）
-  content:    string        # 题目文字内容（Claude 识别）
-  analysis:   string        # 错误分析（Claude 生成）
-  tags:       string[]      # 标签 ID 列表
-  status:     string        # pending | done | failed
-  createdAt:  string        # ISO8601
-  updatedAt:  string        # ISO8601
-```
+  - imageUrl: str          # S3 图片路径
+  - subject: str           # 科目（数学/语文/英语等）
+  - content: str           # 题目文字内容（Claude 识别）
+  - analysis: str          # 错误分析（Claude 生成）
+  - tags: List[str]        # 标签 ID 列表
+  - status: str            # pending / done / failed
+  - createdAt: str         # ISO8601 时间戳
 
-#### 标签
-
-```
-PK:  USER#{userId}
-SK:  TAG#{tagId}
+# 标签
+PK: USER#{userId}
+SK: TAG#{tagId}
 属性:
-  name:       string        # 标签名称
-  color:      string        # 标签颜色（hex）
-  createdAt:  string        # ISO8601
+  - name: str              # 标签名称
+  - color: str             # 标签颜色（hex）
+  - createdAt: str
+
+# GSI-1：按标签查询错题
+GSI PK: USER#{userId}#TAG#{tagId}
+GSI SK: createdAt（按时间排序）
+
+# GSI-2：关键词搜索（content 前缀匹配）
+GSI PK: USER#{userId}
+GSI SK: content（begins_with 前缀搜索，仅支持内容开头匹配；如需全文搜索可后期接 OpenSearch）
 ```
-
-#### 查询策略
-
-- **按标签筛选**：主表 Query `PK=USER#{userId}`，再用 `FilterExpression: contains(tags, tagId)`。错题本数据量小（单用户百~千条），FilterExpression 足够，无需额外 GSI。
-- **关键词搜索**：同上，`FilterExpression: contains(content, keyword)`，前端搜索框触发。
-- **GSI-ByDate**：`PK=USER#{userId}`，`SK=createdAt`，支持按时间排序分页查询。
 
 ---
 
-## 7. 错误处理
+## 错误处理
 
 | 场景 | 处理方式 |
 |------|---------|
-| Claude Vision 识别失败 | 题目状态置为 `failed`，前端显示"识别失败，可手动输入"，支持单张重试 |
-| S3 上传超时/失败 | 前端捕获错误，单张独立显示失败状态，提供重试按钮 |
-| Presigned URL 过期 | URL 有效期 15 分钟，过期返回 403，前端重新请求 URL 后自动重试 |
-| DynamoDB 写入失败 | Lambda 内部 retry 3 次，失败后返回 500，前端提示用户 |
+| Claude Vision 识别失败 | 题目 status 置为 `failed`，前端显示"识别失败，可手动输入"，支持单张重试 |
+| S3 上传超时/失败 | 前端捕获错误，单张独立重试，不影响其他图片队列 |
+| Presigned URL 过期 | URL 有效期 15 分钟，前端收到 403 后自动重新请求 URL 并重试 |
+| DynamoDB 写入失败 | Lambda 内部 retry 3 次，失败返回 500，前端提示用户 |
 | JWT 过期 | API Gateway 返回 401，Axios 拦截器自动用 Refresh Token 换新 Token |
-| 网络中断 | 上传队列保存在 UploadContext，页面刷新后提示用户重新上传 |
 
 ---
 
-## 8. 安全设计
+## 安全设计
 
-- **用户数据隔离**：所有 DynamoDB 查询强制带 `USER#{userId}`（从 JWT `sub` claim 提取），用户只能访问自己的数据，后端不信任前端传入的 userId
-- **S3 路径隔离**：图片路径为 `{userId}/{questionId}/{filename}`，Presigned URL 仅限该路径，有效期 15 分钟
-- **IAM 最小权限**：Lambda 执行角色仅有 DynamoDB 指定表读写权限 + S3 指定 Bucket 的 `GetObject`/`PutObject` 权限
-- **文件类型限制**：上传只接受 `image/jpeg`、`image/png`、`image/webp`，单文件最大 10MB
-- **CORS 限制**：API Gateway 仅允许 CloudFront 前端域名跨域访问
-- **Cognito 密码策略**：最少 8 位，包含大小写字母和数字
+- **数据隔离**：所有 DynamoDB 查询强制带 `USER#{userId}`（从 JWT claims 提取），用户只能访问自己的数据
+- **S3 路径隔离**：图片路径格式为 `{userId}/{questionId}/{filename}`，presigned URL 仅对该路径有效
+- **IAM 最小权限**：Lambda 执行角色仅有 DynamoDB 指定表的读写权限 + S3 指定 Bucket 的读写权限
+- **文件类型验证**：上传文件类型限制为 `image/jpeg`、`image/png`、`image/webp`，单文件最大 10MB
+- **CORS**：API Gateway 仅允许 CloudFront 域名跨域访问
 
 ---
 
-## 9. 部署架构
+## 基础设施（AWS SAM）
 
 | 资源 | 说明 |
 |------|------|
-| S3 Bucket（前端） | 静态网站托管，CloudFront OAC 访问 |
-| S3 Bucket（图片） | 私有，仅 Lambda 和 Presigned URL 访问 |
-| CloudFront Distribution | 前端 CDN，HTTPS，SPA 路由 fallback |
 | Cognito User Pool | 用户注册/登录，JWT 签发 |
-| API Gateway REST API | JWT Authorizer，所有受保护路由 |
+| API Gateway REST API | JWT Authorizer，路由转发到 Lambda |
 | Lambda Function | FastAPI + Mangum，Python 3.12 |
-| DynamoDB Table | 按需计费模式，单表设计 |
-| SAM / CDK | 基础设施即代码部署 |
+| DynamoDB Table | 单表，按需计费（PAY_PER_REQUEST） |
+| S3 Bucket（图片） | 用户图片存储，私有，仅 Lambda 可读 |
+| S3 Bucket（前端） | 静态资源托管，CloudFront 源站 |
+| CloudFront Distribution | HTTPS + CDN，前端入口 |
