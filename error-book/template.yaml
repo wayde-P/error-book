@@ -95,7 +95,7 @@ Resources:
       CorsConfiguration:
         CorsRules:
           - AllowedHeaders: ['*']
-            AllowedMethods: [GET, PUT, POST]
+            AllowedMethods: [PUT]
             AllowedOrigins: ['*']
             MaxAge: 3600
       PublicAccessBlockConfiguration:
