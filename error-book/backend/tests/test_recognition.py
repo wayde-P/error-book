@@ -1,39 +1,61 @@
+import json
 import pytest
 from unittest.mock import MagicMock, patch
 
-def test_recognize_returns_structured_data():
-    with patch("services.recognition.anthropic.Anthropic") as MockClient, \
-         patch("services.recognition.boto3.client") as mock_s3:
-        # mock S3 get_object
-        mock_s3.return_value.get_object.return_value = {
+def _make_bedrock_tool_response(questions: list) -> dict:
+    body_mock = MagicMock()
+    body_mock.read.return_value = json.dumps({
+        "content": [{
+            "type": "tool_use",
+            "name": "save_questions",
+            "input": {"questions": questions}
+        }]
+    }).encode()
+    return {"body": body_mock}
+
+def _make_bedrock_empty_response() -> dict:
+    body_mock = MagicMock()
+    body_mock.read.return_value = json.dumps({"content": []}).encode()
+    return {"body": body_mock}
+
+def test_recognize_returns_list_of_questions():
+    with patch("services.recognition.boto3.client") as mock_boto:
+        mock_s3 = MagicMock()
+        mock_bedrock = MagicMock()
+        mock_boto.side_effect = lambda service, **kw: mock_s3 if service == "s3" else mock_bedrock
+
+        mock_s3.get_object.return_value = {
             "Body": MagicMock(read=lambda: b"fake-image-bytes"),
             "ContentType": "image/jpeg",
         }
-        # mock Claude response
-        mock_msg = MagicMock()
-        mock_msg.content = [MagicMock(text='{"subject":"数学","content":"1+1=?","analysis":"加法运算"}')]
-        MockClient.return_value.messages.create.return_value = mock_msg
+        mock_bedrock.invoke_model.return_value = _make_bedrock_tool_response([
+            {"subject": "数学", "content": "1+1=?", "analysis": "加法运算"},
+            {"subject": "数学", "content": "2×3=?", "analysis": "乘法运算"},
+        ])
 
         from services.recognition import RecognitionService
         svc = RecognitionService()
         result = svc.recognize("user1/q1/photo.jpg")
 
-        assert result["subject"] == "数学"
-        assert result["content"] == "1+1=?"
-        assert result["analysis"] == "加法运算"
+        assert isinstance(result, list)
+        assert len(result) == 2
+        assert result[0]["subject"] == "数学"
+        assert result[0]["content"] == "1+1=?"
+        assert result[1]["content"] == "2×3=?"
 
-def test_recognize_raises_on_invalid_json():
-    with patch("services.recognition.anthropic.Anthropic") as MockClient, \
-         patch("services.recognition.boto3.client") as mock_s3:
-        mock_s3.return_value.get_object.return_value = {
+def test_recognize_raises_when_no_tool_call():
+    with patch("services.recognition.boto3.client") as mock_boto:
+        mock_s3 = MagicMock()
+        mock_bedrock = MagicMock()
+        mock_boto.side_effect = lambda service, **kw: mock_s3 if service == "s3" else mock_bedrock
+
+        mock_s3.get_object.return_value = {
             "Body": MagicMock(read=lambda: b"fake-image-bytes"),
             "ContentType": "image/jpeg",
         }
-        mock_msg = MagicMock()
-        mock_msg.content = [MagicMock(text="invalid json")]
-        MockClient.return_value.messages.create.return_value = mock_msg
+        mock_bedrock.invoke_model.return_value = _make_bedrock_empty_response()
 
         from services.recognition import RecognitionService
         svc = RecognitionService()
-        with pytest.raises(ValueError, match="识别结果解析失败"):
+        with pytest.raises(ValueError, match="未收到工具调用响应"):
             svc.recognize("user1/q1/photo.jpg")
