@@ -2,8 +2,13 @@ from pydantic import BaseModel
 from typing import List, Optional
 
 class QuestionCreate(BaseModel):
-    imageKey: str          # S3 object key，格式 {userId}/{questionId}/{filename}
+    imageKey: str
     subject: Optional[str] = None
+
+class ManualQuestionCreate(BaseModel):
+    subject: str
+    content: str
+    analysis: Optional[str] = None
 
 class QuestionUpdate(BaseModel):
     subject: Optional[str] = None
@@ -14,11 +19,11 @@ class QuestionUpdate(BaseModel):
 class Question(BaseModel):
     questionId: str
     userId: str
-    imageKey: str
-    imageUrl: str          # S3 presigned GET URL，供前端展示
+    imageKey: Optional[str] = None
+    imageUrl: Optional[str] = None
     subject: str
     content: str
     analysis: str
     tags: List[str]
-    status: str            # pending / done / failed
+    status: str
     createdAt: str
