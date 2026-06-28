@@ -53,9 +53,12 @@ export default function ErrorBankPage() {
     setSearchParams(p)
   }
 
-  const displayed = sortBySubject
-    ? [...questions].sort((a, b) => (a.subject || '').localeCompare(b.subject || '', 'zh'))
-    : questions
+  const displayed = [...questions]
+    .sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''))
+    .sort(sortBySubject
+      ? (a, b) => (a.subject || '').localeCompare(b.subject || '', 'zh')
+      : () => 0
+    )
 
   const totalPages = Math.max(1, Math.ceil(displayed.length / PAGE_SIZE))
   const pageItems = showAll ? displayed : displayed.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
